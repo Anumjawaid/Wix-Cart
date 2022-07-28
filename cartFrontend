@@ -1,0 +1,253 @@
+import { cart } from 'wix-stores';
+import wixData from 'wix-data';
+import wixUsers from 'wix-users';
+import wixLocation from 'wix-location';
+import wixStores from 'wix-stores';
+var cartItems = [];
+var plus = 1
+var minus = 1;
+var weight = 0;
+var subTotal = 0;
+var shipping = 0;
+var totalPrice = 0;
+var cartIdforOrder = "";
+var totalPriceIncreaseQuantity = 0;
+$w.onReady(async function () {
+    await setRepeaterData()
+});
+
+async function setRepeaterData() {
+    //----setting data of cart in repeater by fetching cart information from wix cart----//>
+    cart.getCurrentCart()
+        .then((currentCart) => {
+            console.log(currentCart, "currentcart info")
+            if(currentCart.lineItems.length <= 0){
+                //actual cart, hide custom cart
+                $w('#loader1').collapse()
+                $w('#shoppingCart1').expand()
+            }
+            
+            var cartId = currentCart._id;
+            cartIdforOrder = currentCart._id;
+            var weight = currentCart.totals.weight;
+            subTotal = (currentCart.totals.subtotal) * 100
+            shipping = 0;
+            totalPrice = subTotal + shipping
+            //  $w('#finaltotal').text = currentCart.totals.total.toString();
+            console.log(totalPrice, "total Price")
+
+            $w('#finaltotal').text = parseInt(totalPrice).toString().replace(/\B(?=(\d{1)+(?!\d))/g, ",") + currentCart.currency.symbol
+
+            const cartLineItems = currentCart.lineItems;
+            if (currentCart.lineItems.length > 0) {
+                // $w('#cartmsg').collapse();
+                // $w('#continueshop').show();
+                // $w('#text29').show();
+                // $w('#group33').show()
+                currentCart.lineItems.map((i, index) => {
+                    console.log(i, "eact item");
+                    if (i.options.length > 1) {
+                        cartItems.push({
+                            _id: "cartid" + i.id,
+                            img: i.mediaItem.src,
+                            name: i.name,
+                            price: Number(i.price) * 100,
+                            totalprice: Number(i.totalPrice),
+                            quantity: i.quantity,
+                            size: i.options[0].selection,
+                            color: i.options[1].selection,
+                            type: i.options[2].selection,
+                            id: i.id,
+                            symbols: currentCart.currency.symbol
+                        })
+
+                    } else {
+                        cartItems.push({
+                            _id: "cartid" + i.id,
+                            img: i.mediaItem.src,
+                            name: i.name,
+                            price: Number(i.price) * 100,
+                            totalprice: Number(i.totalPrice) * 100,
+                            quantity: i.quantity,
+                            // size: i.options[0].selection,
+                            // color: i.options[1].selection,
+                            // type: i.options[2].selection,
+                            id: i.id,
+                            symbols: currentCart.currency.symbol
+                        })
+
+                    }
+                })
+            }
+            //setting data on cart repeater and ship page repeater -------------------------------->
+            $w('#repeater1').data = cartItems;
+            // $w('#repeater2').data = cartItems;
+            console.log($w('#repeater1').data, "repeater data");
+            $w('#subtotal').text = subTotal.toString().replace(/\B(?=(\d{2})+(?!\d))/g, ",");
+            setTimeout(()=>{
+                $w('#loader1').collapse()
+            $w('#statebox8').expand()
+            },2000)
+            
+            // $w('#shipping').text = shipping.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+        })
+        .catch((e) => {
+            console.log(e, "error")
+        })
+
+}
+
+export function repeater1_itemReady($item, itemData, index) {
+    $item('#name').text = itemData.name;
+    $item('#price').text = parseInt(itemData.price).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") + itemData.symbols
+    $item('#totalprice').text = parseInt(itemData.totalprice).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") + itemData.symbols
+    $item('#quantity').text = itemData.quantity.toString();
+    $item('#cartimage').src = itemData.img;
+}
+
+export async function multiply_click(event) {
+    let $item = $w.at(event.context);
+    const data = $w("#repeater1").data;
+    let clickedItemData = data.find(item => item._id === event.context.itemId);
+    var cartLineItemId = clickedItemData.id
+    console.log(cartLineItemId, "item id");
+    cart.removeProduct(cartLineItemId)
+        .then(async (updatedCart) => {
+            console.log(updatedCart)
+            $w('#repeater1').data = []
+            const cartLineItems = updatedCart.lineItems;
+            let items = await createRepeaterData(cartLineItems, updatedCart.currency.symbol)
+            console.log(items, "from create Repeater data");
+            $w('#repeater1').data = []
+            $w('#repeater1').data = items
+            // $w('#repeater2').data = items;
+            totalPrice = updatedCart.totals.subtotal + shipping
+            $w('#subtotal').text = parseInt(updatedCart.totals.subtotal).toString();
+            // $w('#shipping').text = "0"
+            // $w('#shipping').text = shipping.toString()
+            $w('#finaltotal').text = parseInt(totalPrice).toString();
+        })
+        .catch((error) => {
+            // Product not removed
+            console.error(error);
+        });
+}
+
+async function createRepeaterData(data, symbols) {
+    console.log(data, "data")
+    let cartdata = []
+    data.map((i, v) => {
+        cartdata.push({
+            _id: "cartid" + i.id,
+            img: i.mediaItem.src,
+            name: i.name,
+            price: Number(i.price) * 100,
+            totalprice: Number(i.totalPrice) * 100,
+            quantity: i.quantity,
+            // size: i.options[0].selection,
+            // color: i.options[1].selection,
+            // type: i.options[2].selection,
+            id: i.id,
+            symbols: symbols
+
+        })
+
+    })
+    return cartdata
+
+}
+
+export function plus_click(event) {
+    let $item = $w.at(event.context);
+    const data = $w("#repeater1").data;
+    let clickedItemData = data.find(item => item._id === event.context.itemId);
+    var quantity = $item('#quantity').text;
+    plus = parseInt(quantity) + 1
+    $item('#quantity').text = plus.toString();
+    var cartLineItemId = clickedItemData.id
+    //calculating total price for each item
+    var total_price = $item('#price').text;
+    totalPriceIncreaseQuantity = parseInt(total_price) * 1000
+    totalPriceIncreaseQuantity = totalPriceIncreaseQuantity * plus;
+    $item('#totalprice').text = parseInt(totalPriceIncreaseQuantity).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    //updating cart
+    cart.updateLineItemQuantity(cartLineItemId, plus)
+        .then((updatedCart) => {
+            // Cart line item's quantity updated
+            const cartId = updatedCart._id;
+            const updatedLineItems = updatedCart;
+            console.log(updatedLineItems, "updated cart");
+
+            subTotal = updatedLineItems.totals.subtotal * 100
+            console.log(subTotal, "subTotal")
+            totalPrice = subTotal
+            $w('#subtotal').text = subTotal.toString();
+            // $w('#shipping').text = shipping.toString()
+            $w('#finaltotal').text = parseInt(totalPrice).toString()
+        })
+        .catch((error) => {
+            // Cart line item's quantity not updated
+            console.log(error);
+        })
+}
+
+export function minus_click(event) {
+    let $item = $w.at(event.context);
+    const data = $w("#repeater1").data;
+    let clickedItemData = data.find(item => item._id === event.context.itemId);
+    var cartLineItemId = clickedItemData.id
+    var quantity = $item('#quantity').text;
+    minus = parseInt(quantity) - 1;
+    if (minus == 0) {
+        //remove this element
+        cart.removeProduct(cartLineItemId)
+            .then(async (updatedCart) => {
+                console.log(updatedCart)
+                $w('#repeater1').data = []
+                const cartLineItems = updatedCart.lineItems;
+                let items = await createRepeaterData(cartLineItems, updatedCart.currency.symbol)
+                console.log(items, "from create Repeater data");
+                $w('#repeater1').data = []
+                $w('#repeater1').data = items
+                // $w('#repeater2').data = items;
+                totalPrice = updatedCart.totals.subtotal + shipping
+                $w('#subtotal').text = parseInt(updatedCart.totals.subtotal).toString();
+                // $w('#shipping').text = "0"
+                // $w('#shipping').text = shipping.toString()
+                $w('#finaltotal').text = parseInt(totalPrice).toString();
+            })
+            .catch((error) => {
+                // Product not removed
+                console.error(error);
+            });
+
+    } else {
+        $item('#quantity').text = minus.toString();
+        //calculating total
+        var total_price = parseInt($item('#price').text) * 1000
+        console.log(minus, total_price, "tp1")
+
+        totalPriceIncreaseQuantity = total_price * minus;
+        $item('#totalprice').text = parseInt(totalPriceIncreaseQuantity).toString();
+        //updating cart
+        cart.updateLineItemQuantity(cartLineItemId, minus)
+            .then((updatedCart) => {
+                console.log("updated cart items minus sign")
+                // Cart line item's quantity updated
+                const cartId = updatedCart._id;
+                const updatedLineItems = updatedCart;
+                console.log(updatedLineItems, "updated cart");
+                weight = updatedLineItems.totals.weight;
+                subTotal = updatedLineItems.totals.subtotal * 100
+                totalPrice = subTotal + shipping
+                $w('#subtotal').text = parseInt(subTotal).toString();
+                // $w('#shipping').text = "0"
+                // $w('#shipping').text = shipping.toString()
+                $w('#finaltotal').text = parseInt(totalPrice).toString();
+            })
+            .catch((error) => {
+                // Cart line item's quantity not updated
+                console.log(error);
+            })
+    }
+}
